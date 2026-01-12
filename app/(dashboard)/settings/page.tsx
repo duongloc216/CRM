@@ -144,6 +144,82 @@ export default function SettingsPage() {
     }
   }
 
+  // T3.5.1: Edit dialog state
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    email: "",
+    role: "",
+    password: "",
+    status: "active"
+  })
+
+  // T3.5.2: Open edit dialog handler
+  const openEditDialog = (user: User) => {
+    setEditingUser(user)
+    setEditFormData({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      password: "", // Password để trống, chỉ cập nhật nếu nhập
+      status: user.status
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  // T3.5.3: Edit form onChange
+  const handleEditInputChange = (field: string, value: string) => {
+    setEditFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  // T3.5.4: Update handler
+  const handleUpdate = async () => {
+    if (!editingUser) return
+
+    if (!editFormData.name.trim()) {
+      alert("Vui lòng nhập tên người dùng")
+      return
+    }
+    if (!editFormData.email.trim()) {
+      alert("Vui lòng nhập email")
+      return
+    }
+    if (!editFormData.role) {
+      alert("Vui lòng chọn vai trò")
+      return
+    }
+    // Password optional when updating
+
+    setSubmitting(true)
+    try {
+      const res = await fetch(`/api/users/${editingUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editFormData)
+      })
+      const result = await res.json()
+      
+      if (!res.ok) {
+        alert(result.message || "Có lỗi xảy ra")
+        return
+      }
+
+      const refreshRes = await fetch("/api/users")
+      const refreshData = await refreshRes.json()
+      setUsers(refreshData.data || [])
+
+      setIsEditDialogOpen(false)
+      setEditingUser(null)
+      alert("Cập nhật người dùng thành công!")
+    } catch (err) {
+      alert("Có lỗi xảy ra khi cập nhật")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // T4.1.1: Hard-coded tags (chưa có table tags trong DB, giữ làm demo)
   const tags = [
     { id: 1, name: "VIP", color: "purple", count: 12 },
     { id: 2, name: "Enterprise", color: "blue", count: 8 },
@@ -152,23 +228,24 @@ export default function SettingsPage() {
     { id: 5, name: "Hot Lead", color: "red", count: 6 },
   ]
 
+  // T4.1.2: Demo stub integrations - NOT IMPLEMENTED
   const integrations = [
     {
-      name: "Google Calendar",
-      description: "Đồng bộ lịch hẹn và nhắc nhở",
-      status: "connected",
+      name: "Google Calendar (Demo)",
+      description: "[Demo stub] Đồng bộ lịch hẹn và nhắc nhở",
+      status: "demo",
       icon: Calendar,
     },
     {
-      name: "Slack",
-      description: "Thông báo và cập nhật qua Slack",
-      status: "disconnected",
+      name: "Slack (Demo)",
+      description: "[Demo stub] Thông báo và cập nhật qua Slack",
+      status: "demo",
       icon: MessageSquare,
     },
     {
-      name: "Zapier",
-      description: "Tự động hóa workflow với 1000+ ứng dụng",
-      status: "connected",
+      name: "Zapier (Demo)",
+      description: "[Demo stub] Tự động hóa workflow với 1000+ ứng dụng",
+      status: "demo",
       icon: Zap,
     },
   ]
@@ -352,7 +429,10 @@ export default function SettingsPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="bg-white border-gray-200">
-                            <DropdownMenuItem className="text-gray-700 hover:bg-gray-100">
+                            <DropdownMenuItem 
+                              className="text-gray-700 hover:bg-gray-100"
+                              onClick={() => openEditDialog(user)}
+                            >
                               <Edit className="h-4 w-4 mr-2" />
                               Chỉnh sửa
                             </DropdownMenuItem>
@@ -416,6 +496,90 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* T3.5.5: Edit User Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="bg-white border-gray-200">
+          <DialogHeader>
+            <DialogTitle className="text-black">Chỉnh sửa người dùng</DialogTitle>
+            <DialogDescription className="text-gray-500">Cập nhật thông tin người dùng</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="editUserName" className="text-gray-700">
+                Tên người dùng <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="editUserName"
+                placeholder="Nhập tên người dùng"
+                className="bg-white border-gray-300"
+                value={editFormData.name}
+                onChange={(e) => handleEditInputChange("name", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editUserEmail" className="text-gray-700">
+                Email <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="editUserEmail"
+                type="email"
+                placeholder="Nhập email"
+                className="bg-white border-gray-300"
+                value={editFormData.email}
+                onChange={(e) => handleEditInputChange("email", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editUserRole" className="text-gray-700">
+                Vai trò <span className="text-red-500">*</span>
+              </Label>
+              <Select value={editFormData.role} onValueChange={(value) => handleEditInputChange("role", value)}>
+                <SelectTrigger className="bg-white border-gray-300">
+                  <SelectValue placeholder="Chọn vai trò" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="sales">Sales</SelectItem>
+                  <SelectItem value="marketing">Marketing</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editUserPassword" className="text-gray-700">
+                Mật khẩu mới (để trống nếu không đổi)
+              </Label>
+              <Input
+                id="editUserPassword"
+                type="password"
+                placeholder="Nhập mật khẩu mới"
+                className="bg-white border-gray-300"
+                value={editFormData.password}
+                onChange={(e) => handleEditInputChange("password", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editUserStatus" className="text-gray-700">Trạng thái</Label>
+              <Select value={editFormData.status} onValueChange={(value) => handleEditInputChange("status", value)}>
+                <SelectTrigger className="bg-white border-gray-300">
+                  <SelectValue placeholder="Chọn trạng thái" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  <SelectItem value="active">Hoạt động</SelectItem>
+                  <SelectItem value="inactive">Không hoạt động</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button 
+              className="w-full bg-purple-600 hover:bg-purple-700"
+              onClick={handleUpdate}
+              disabled={submitting}
+            >
+              {submitting ? "Đang cập nhật..." : "Cập nhật"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

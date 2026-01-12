@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -66,6 +67,7 @@ const stageProbabilityMap: { [key: string]: number } = {
 }
 
 export default function DealsPage() {
+  const router = useRouter()
   const [deals, setDeals] = useState<Deal[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -184,6 +186,95 @@ export default function DealsPage() {
     }
   }
 
+  // T3.4.1: Edit Dialog state
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingDeal, setEditingDeal] = useState<Deal | null>(null)
+  const [editFormData, setEditFormData] = useState({
+    title: "",
+    customer_id: "",
+    value: "",
+    stage: "prospect",
+    probability: "10",
+    expected_close_date: "",
+    description: "",
+    owner_id: ""
+  })
+
+  // T3.4.2: Populate form khi click Edit
+  const openEditDialog = (deal: Deal) => {
+    setEditingDeal(deal)
+    setEditFormData({
+      title: deal.title || "",
+      customer_id: deal.customer_id?.toString() || "",
+      value: deal.value?.toString() || "",
+      stage: deal.stage || "prospect",
+      probability: deal.probability?.toString() || "10",
+      expected_close_date: deal.expected_close_date?.split('T')[0] || "",
+      description: deal.description || "",
+      owner_id: deal.owner_id?.toString() || ""
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  const handleEditInputChange = (field: string, value: string) => {
+    setEditFormData(prev => {
+      const updated = { ...prev, [field]: value }
+      // Auto-fill probability khi chọn stage
+      if (field === "stage" && stageProbabilityMap[value] !== undefined) {
+        updated.probability = stageProbabilityMap[value].toString()
+      }
+      return updated
+    })
+  }
+
+  // T3.4.3: handleUpdate gọi PUT API
+  const handleUpdate = async () => {
+    if (!editingDeal) return
+    if (!editFormData.title.trim()) {
+      alert("Vui lòng nhập tiêu đề cơ hội")
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const payload = {
+        title: editFormData.title,
+        customer_id: editFormData.customer_id ? parseInt(editFormData.customer_id) : null,
+        value: editFormData.value ? parseFloat(editFormData.value) : null,
+        stage: editFormData.stage,
+        probability: parseInt(editFormData.probability) || 0,
+        expected_close_date: editFormData.expected_close_date || null,
+        description: editFormData.description,
+        owner_id: editFormData.owner_id ? parseInt(editFormData.owner_id) : null
+      }
+
+      const res = await fetch(`/api/deals/${editingDeal.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      const result = await res.json()
+      
+      if (!res.ok) {
+        alert(result.message || "Có lỗi xảy ra")
+        return
+      }
+
+      // Refresh data
+      const refreshRes = await fetch("/api/deals")
+      const refreshData = await refreshRes.json()
+      setDeals(refreshData.data || [])
+
+      setIsEditDialogOpen(false)
+      setEditingDeal(null)
+      alert("Cập nhật cơ hội thành công!")
+    } catch (err) {
+      alert("Có lỗi xảy ra khi cập nhật cơ hội")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   useEffect(() => {
     // Fetch deals
     fetch("/api/deals")
@@ -240,6 +331,25 @@ export default function DealsPage() {
   })
 
   const totalValue = filteredDeals.reduce((sum, deal) => sum + (deal.value || 0), 0)
+
+  // T2.3.1: Tính tỷ lệ thành công từ data thật
+  const closedDeals = deals.filter(d => d.stage === 'won' || d.stage === 'lost')
+  const wonDeals = deals.filter(d => d.stage === 'won')
+  const winRate = closedDeals.length > 0 ? Math.round((wonDeals.length / closedDeals.length) * 100) : 0
+
+  // T2.3.2: Đếm deals có expected_close_date trong tuần này
+  const now = new Date()
+  const startOfWeek = new Date(now)
+  startOfWeek.setDate(now.getDate() - now.getDay())
+  startOfWeek.setHours(0, 0, 0, 0)
+  const endOfWeek = new Date(startOfWeek)
+  endOfWeek.setDate(startOfWeek.getDate() + 7)
+  
+  const dueThisWeek = deals.filter(d => {
+    if (!d.expected_close_date || d.stage === 'won' || d.stage === 'lost') return false
+    const closeDate = new Date(d.expected_close_date)
+    return closeDate >= startOfWeek && closeDate < endOfWeek
+  }).length
 
   if (loading) return <div>Đang tải dữ liệu...</div>
 
@@ -429,8 +539,8 @@ export default function DealsPage() {
             <TrendingUp className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-black">68%</div>
-            <p className="text-xs text-gray-500">Tháng này</p>
+            <div className="text-2xl font-bold text-black">{winRate}%</div>
+            <p className="text-xs text-gray-500">Won / (Won + Lost)</p>
           </CardContent>
         </Card>
 
@@ -440,7 +550,7 @@ export default function DealsPage() {
             <Calendar className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-black">3</div>
+            <div className="text-2xl font-bold text-black">{dueThisWeek}</div>
             <p className="text-xs text-gray-500">Tuần này</p>
           </CardContent>
         </Card>
@@ -531,11 +641,17 @@ export default function DealsPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="bg-white border-gray-200">
-                        <DropdownMenuItem className="text-gray-600 hover:bg-gray-100">
+                        <DropdownMenuItem 
+                          className="text-gray-600 hover:bg-gray-100"
+                          onClick={() => router.push(`/deals/${deal.id}`)}
+                        >
                           <Eye className="h-4 w-4 mr-2" />
                           Xem chi tiết
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-gray-600 hover:bg-gray-100">
+                        <DropdownMenuItem 
+                          className="text-gray-600 hover:bg-gray-100"
+                          onClick={() => openEditDialog(deal)}
+                        >
                           <Edit className="h-4 w-4 mr-2" />
                           Chỉnh sửa
                         </DropdownMenuItem>
@@ -555,6 +671,129 @@ export default function DealsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* T3.4.1: Edit Deal Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="bg-white border-gray-200 max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-black">Chỉnh sửa cơ hội</DialogTitle>
+            <DialogDescription className="text-gray-500">Cập nhật thông tin cơ hội bán hàng</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="col-span-2 space-y-2">
+              <Label htmlFor="edit-title" className="text-gray-700">
+                Tiêu đề cơ hội <span className="text-red-500">*</span>
+              </Label>
+              <Input 
+                id="edit-title" 
+                className="bg-white border-gray-200 text-black"
+                value={editFormData.title}
+                onChange={(e) => handleEditInputChange("title", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-gray-700">Khách hàng</Label>
+              <Select value={editFormData.customer_id} onValueChange={(v) => handleEditInputChange("customer_id", v)}>
+                <SelectTrigger className="bg-white border-gray-200 text-black">
+                  <SelectValue placeholder="Chọn khách hàng" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-gray-200 max-h-60">
+                  {customers.map((c) => (
+                    <SelectItem key={c.id} value={c.id.toString()}>
+                      {c.name} {c.company ? `(${c.company})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-gray-700">Giá trị (VNĐ)</Label>
+              <Input 
+                type="number"
+                className="bg-white border-gray-200 text-black"
+                value={editFormData.value}
+                onChange={(e) => handleEditInputChange("value", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-gray-700">Giai đoạn</Label>
+              <Select value={editFormData.stage} onValueChange={(v) => handleEditInputChange("stage", v)}>
+                <SelectTrigger className="bg-white border-gray-200 text-black">
+                  <SelectValue placeholder="Chọn giai đoạn" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-gray-200">
+                  {stages.map((stage) => (
+                    <SelectItem key={stage.key} value={stage.key}>{stage.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-gray-700">Xác suất (%)</Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                className="bg-white border-gray-200 text-black"
+                value={editFormData.probability}
+                onChange={(e) => handleEditInputChange("probability", e.target.value)}
+              />
+              {stageProbabilityMap[editFormData.stage] !== undefined && 
+               parseInt(editFormData.probability) !== stageProbabilityMap[editFormData.stage] && (
+                <p className="text-xs text-orange-500">
+                  ⚠️ Đề xuất: {stageProbabilityMap[editFormData.stage]}% cho stage này
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label className="text-gray-700">Ngày đóng dự kiến</Label>
+              <Input 
+                type="date"
+                className="bg-white border-gray-200 text-black"
+                value={editFormData.expected_close_date}
+                onChange={(e) => handleEditInputChange("expected_close_date", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-gray-700">Người phụ trách</Label>
+              <Select value={editFormData.owner_id} onValueChange={(v) => handleEditInputChange("owner_id", v)}>
+                <SelectTrigger className="bg-white border-gray-200 text-black">
+                  <SelectValue placeholder="Chọn người phụ trách" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-gray-200 max-h-60">
+                  {users.map((u) => (
+                    <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-2">
+              <Label className="text-gray-700">Mô tả</Label>
+              <Textarea 
+                className="bg-white border-gray-200 text-black"
+                value={editFormData.description}
+                onChange={(e) => handleEditInputChange("description", e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsEditDialogOpen(false)}
+              className="bg-white border-gray-200 text-black hover:bg-gray-100"
+            >
+              Hủy
+            </Button>
+            <Button 
+              className="bg-purple-600 hover:bg-purple-700"
+              onClick={handleUpdate}
+              disabled={submitting}
+            >
+              {submitting ? "Đang lưu..." : "Cập nhật"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

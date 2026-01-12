@@ -189,6 +189,77 @@ export default function CustomersPage() {
     }
   }
 
+  // T3.3.1: Edit Dialog state
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null)
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    company: "",
+    email: "",
+    phone: "",
+    address: "",
+    source: "",
+    status: "prospect",
+    tags: ""
+  })
+
+  // T3.3.2: Populate form khi click Edit
+  const openEditDialog = (customer: Customer) => {
+    setEditingCustomer(customer)
+    setEditFormData({
+      name: customer.name || "",
+      company: customer.company || "",
+      email: customer.email || "",
+      phone: customer.phone || "",
+      address: customer.address || "",
+      source: customer.source || "",
+      status: customer.status || "prospect",
+      tags: customer.tags || ""
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  const handleEditInputChange = (field: string, value: string) => {
+    setEditFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  // T3.3.3: handleUpdate gọi PUT API
+  const handleUpdate = async () => {
+    if (!editingCustomer) return
+    if (!editFormData.name.trim()) {
+      alert("Vui lòng nhập tên khách hàng")
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const res = await fetch(`/api/customers/${editingCustomer.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editFormData)
+      })
+      const result = await res.json()
+      
+      if (!res.ok) {
+        alert(result.message || "Có lỗi xảy ra")
+        return
+      }
+
+      // Refresh data
+      const refreshRes = await fetch("/api/customers")
+      const refreshData = await refreshRes.json()
+      setCustomers(refreshData.data || [])
+
+      setIsEditDialogOpen(false)
+      setEditingCustomer(null)
+      alert("Cập nhật khách hàng thành công!")
+    } catch (err) {
+      alert("Có lỗi xảy ra khi cập nhật khách hàng")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   useEffect(() => {
     fetch("/api/customers")
       .then((res) => res.json())
@@ -464,7 +535,10 @@ export default function CustomersPage() {
                           <Eye className="h-4 w-4 mr-2" />
                           Xem chi tiết
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-gray-600 hover:bg-gray-100">
+                        <DropdownMenuItem 
+                          className="text-gray-600 hover:bg-gray-100"
+                          onClick={() => openEditDialog(customer)}
+                        >
                           <Edit className="h-4 w-4 mr-2" />
                           Chỉnh sửa
                         </DropdownMenuItem>
@@ -501,6 +575,119 @@ export default function CustomersPage() {
           <span className="bg-gray-100 text-gray-700 border-gray-200" />
         </div>
       )}
+
+      {/* T3.3.1: Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="bg-white border-gray-200 max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-black">Chỉnh sửa khách hàng</DialogTitle>
+            <DialogDescription className="text-gray-500">Cập nhật thông tin khách hàng</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name" className="text-gray-700">
+                Tên khách hàng <span className="text-red-500">*</span>
+              </Label>
+              <Input 
+                id="edit-name" 
+                className="bg-white border-gray-200 text-black"
+                value={editFormData.name}
+                onChange={(e) => handleEditInputChange("name", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-company" className="text-gray-700">Công ty</Label>
+              <Input 
+                id="edit-company" 
+                className="bg-white border-gray-200 text-black"
+                value={editFormData.company}
+                onChange={(e) => handleEditInputChange("company", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-email" className="text-gray-700">Email</Label>
+              <Input 
+                id="edit-email" 
+                type="email"
+                className="bg-white border-gray-200 text-black"
+                value={editFormData.email}
+                onChange={(e) => handleEditInputChange("email", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-phone" className="text-gray-700">Số điện thoại</Label>
+              <Input 
+                id="edit-phone" 
+                className="bg-white border-gray-200 text-black"
+                value={editFormData.phone}
+                onChange={(e) => handleEditInputChange("phone", e.target.value)}
+              />
+            </div>
+            <div className="col-span-2 space-y-2">
+              <Label htmlFor="edit-address" className="text-gray-700">Địa chỉ</Label>
+              <Textarea 
+                id="edit-address" 
+                className="bg-white border-gray-200 text-black"
+                value={editFormData.address}
+                onChange={(e) => handleEditInputChange("address", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-source" className="text-gray-700">Nguồn</Label>
+              <Select value={editFormData.source} onValueChange={(v) => handleEditInputChange("source", v)}>
+                <SelectTrigger className="bg-white border-gray-200 text-black">
+                  <SelectValue placeholder="Chọn nguồn" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-gray-200">
+                  <SelectItem value="website">Website</SelectItem>
+                  <SelectItem value="referral">Giới thiệu</SelectItem>
+                  <SelectItem value="cold-call">Cold Call</SelectItem>
+                  <SelectItem value="social-media">Social Media</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-status" className="text-gray-700">Trạng thái</Label>
+              <Select value={editFormData.status} onValueChange={(v) => handleEditInputChange("status", v)}>
+                <SelectTrigger className="bg-white border-gray-200 text-black">
+                  <SelectValue placeholder="Chọn trạng thái" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-gray-200">
+                  <SelectItem value="prospect">Tiềm năng</SelectItem>
+                  <SelectItem value="active">Hoạt động</SelectItem>
+                  <SelectItem value="inactive">Không hoạt động</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-tags" className="text-gray-700">Tags</Label>
+              <Input 
+                id="edit-tags" 
+                className="bg-white border-gray-200 text-black"
+                placeholder="VIP, Hot Lead, ..."
+                value={editFormData.tags}
+                onChange={(e) => handleEditInputChange("tags", e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsEditDialogOpen(false)}
+              className="bg-white border-gray-200 text-black hover:bg-gray-100"
+            >
+              Hủy
+            </Button>
+            <Button 
+              className="bg-purple-600 hover:bg-purple-700"
+              onClick={handleUpdate}
+              disabled={submitting}
+            >
+              {submitting ? "Đang lưu..." : "Cập nhật"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

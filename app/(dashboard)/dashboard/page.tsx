@@ -16,6 +16,52 @@ function countNewCustomersThisMonth(customers: any[]): number {
   }).length;
 }
 
+function countNewCustomersLastMonth(customers: any[]): number {
+  const now = new Date();
+  const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+  const lastMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  return customers.filter(c => {
+    const created = new Date(c.created_at);
+    return created.getMonth() === lastMonth && created.getFullYear() === lastMonthYear;
+  }).length;
+}
+
+// T2.1.1: Chỉ đếm deals có stage NOT IN ('won', 'lost')
+function countOpenDeals(deals: any[]): number {
+  return deals.filter(d => d.stage !== 'won' && d.stage !== 'lost').length;
+}
+
+function countOpenDealsLastMonth(deals: any[]): number {
+  const now = new Date();
+  const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+  const lastMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  return deals.filter(d => {
+    const created = new Date(d.created_at);
+    return d.stage !== 'won' && d.stage !== 'lost' && 
+           created.getMonth() === lastMonth && created.getFullYear() === lastMonthYear;
+  }).length;
+}
+
+// T2.1.2: Doanh thu dự kiến = weighted = SUM(value * probability / 100), chỉ deals đang mở
+function weightedRevenue(deals: any[]): number {
+  return deals
+    .filter(d => d.stage !== 'won' && d.stage !== 'lost')
+    .reduce((sum, d) => sum + ((d.value || 0) * (d.probability || 0) / 100), 0);
+}
+
+function weightedRevenueLastMonth(deals: any[]): number {
+  const now = new Date();
+  const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+  const lastMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  return deals
+    .filter(d => {
+      const created = new Date(d.created_at);
+      return d.stage !== 'won' && d.stage !== 'lost' &&
+             created.getMonth() === lastMonth && created.getFullYear() === lastMonthYear;
+    })
+    .reduce((sum, d) => sum + ((d.value || 0) * (d.probability || 0) / 100), 0);
+}
+
 function totalDealValue(deals: any[]): number {
   return deals.reduce((sum, d) => sum + (d.value || 0), 0);
 }
@@ -42,34 +88,65 @@ function getRecentActivities(activities: any[], limit = 5) {
     .slice(0, limit);
 }
 
+// T2.1.3: Tỷ lệ thành công - chỉ dùng 'won', bỏ 'thanhcong'
 function successRate(deals: any[]): number {
-  const total = deals.length;
-  if (total === 0) return 0;
-  // Tính tỷ lệ thành công dựa trên stage 'won' hoặc 'thanhcong'
-  const success = deals.filter(d => d.stage === 'won' || d.stage === 'thanhcong').length;
-  return Math.round((success / total) * 100);
+  const closedDeals = deals.filter(d => d.stage === 'won' || d.stage === 'lost');
+  if (closedDeals.length === 0) return 0;
+  const wonDeals = deals.filter(d => d.stage === 'won').length;
+  return Math.round((wonDeals / closedDeals.length) * 100);
 }
 
-function getMonthlyRevenue(deals: any[]): Array<{month: string, revenue: number}> {
-  const monthlyData: Record<string, number> = {};
+function successRateLastMonth(deals: any[]): number {
+  const now = new Date();
+  const lastMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+  const lastMonthYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const lastMonthDeals = deals.filter(d => {
+    const closed = d.actual_close_date ? new Date(d.actual_close_date) : null;
+    return closed && closed.getMonth() === lastMonth && closed.getFullYear() === lastMonthYear;
+  });
+  const closedDeals = lastMonthDeals.filter(d => d.stage === 'won' || d.stage === 'lost');
+  if (closedDeals.length === 0) return 0;
+  const wonDeals = lastMonthDeals.filter(d => d.stage === 'won').length;
+  return Math.round((wonDeals / closedDeals.length) * 100);
+}
+
+// T2.1.4, T2.1.5: Tính % change thật
+function calcPercentChange(current: number, previous: number): { change: string, trend: 'up' | 'down' } {
+  if (previous === 0) {
+    return current > 0 ? { change: '+100%', trend: 'up' } : { change: '0%', trend: 'up' };
+  }
+  const pct = Math.round(((current - previous) / previous) * 100);
+  return {
+    change: (pct >= 0 ? '+' : '') + pct + '%',
+    trend: pct >= 0 ? 'up' : 'down'
+  };
+}
+
+// T2.2.1, T2.2.2, T2.2.3: Doanh thu theo tháng - chỉ deals won với actual_close_date
+function getMonthlyRevenue(deals: any[]): Array<{month: string, revenue: number, sortKey: number}> {
+  const monthlyData: Record<string, { revenue: number, sortKey: number }> = {};
   
   deals.forEach(d => {
-    if (!d.expected_close_date) return;
-    const date = new Date(d.expected_close_date);
-    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    const monthName = `Tháng ${date.getMonth() + 1}/${date.getFullYear()}`;
+    // Chỉ tính deals đã won và có actual_close_date
+    if (d.stage !== 'won' || !d.actual_close_date) return;
+    
+    const date = new Date(d.actual_close_date);
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const sortKey = year * 100 + month; // T2.2.3: Sort key số học
+    const monthName = `Tháng ${month + 1}/${year}`;
     
     if (!monthlyData[monthName]) {
-      monthlyData[monthName] = 0;
+      monthlyData[monthName] = { revenue: 0, sortKey };
     }
-    monthlyData[monthName] += d.value || 0;
+    monthlyData[monthName].revenue += d.value || 0;
   });
   
-  // Sắp xếp theo thời gian và lấy 6 tháng gần nhất
+  // T2.2.3: Sắp xếp bằng sortKey số học, không dùng localeCompare
   return Object.entries(monthlyData)
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .slice(-6)
-    .map(([month, revenue]) => ({ month, revenue }));
+    .map(([month, data]) => ({ month, revenue: data.revenue, sortKey: data.sortKey }))
+    .sort((a, b) => a.sortKey - b.sortKey)
+    .slice(-6);
 }
 
 export default function DashboardPage() {
@@ -105,12 +182,13 @@ export default function DashboardPage() {
 
   if (loading) return <div>Đang tải dữ liệu...</div>
 
-  // Pipeline theo stage
+  // Pipeline theo stage (T4.1.3: thêm negotiation)
   const pipelineStages = [
     { stage: "Đăng ký", key: "Đăng ký", color: "bg-purple-500" },
     { stage: "Tiềm năng", key: "prospect", color: "bg-blue-500" },
     { stage: "Demo", key: "demo", color: "bg-yellow-500" },
     { stage: "Đề xuất", key: "proposal", color: "bg-orange-500" },
+    { stage: "Đàm phán", key: "negotiation", color: "bg-pink-500" },
     { stage: "Thành công", key: "won", color: "bg-green-500" },
     { stage: "Thất bại", key: "lost", color: "bg-red-500" },
   ];
@@ -129,39 +207,55 @@ export default function DashboardPage() {
     value: (valueByStage[item.key] || 0).toLocaleString() + " VNĐ"
   }));
 
-  // KPI
+  // KPI với tính toán thật (T2.1.4, T2.1.5)
+  const newCustomersThis = countNewCustomersThisMonth(customers);
+  const newCustomersLast = countNewCustomersLastMonth(customers);
+  const customersChange = calcPercentChange(newCustomersThis, newCustomersLast);
+
+  const openDealsThis = countOpenDeals(deals);
+  const openDealsLast = countOpenDealsLastMonth(deals);
+  const openDealsChange = calcPercentChange(openDealsThis, openDealsLast);
+
+  const weightedRevThis = weightedRevenue(deals);
+  const weightedRevLast = weightedRevenueLastMonth(deals);
+  const revenueChange = calcPercentChange(weightedRevThis, weightedRevLast);
+
+  const successRateThis = successRate(deals);
+  const successRateLast = successRateLastMonth(deals);
+  const successChange = calcPercentChange(successRateThis, successRateLast);
+
   const kpiData = [
     {
       title: "Khách hàng mới",
-      value: countNewCustomersThisMonth(customers).toString(),
-      change: "+12%", // TODO: tính toán động nếu muốn
-      trend: "up",
+      value: newCustomersThis.toString(),
+      change: customersChange.change,
+      trend: customersChange.trend,
       icon: Users,
       description: "So với tháng trước",
     },
     {
       title: "Cơ hội mở",
-      value: deals.length.toString(),
-      change: "+8%",
-      trend: "up",
+      value: openDealsThis.toString(),
+      change: openDealsChange.change,
+      trend: openDealsChange.trend,
       icon: Target,
       description: "Đang trong pipeline",
     },
     {
       title: "Doanh thu dự kiến",
-      value: totalDealValue(deals).toLocaleString() + " VNĐ",
-      change: "-3%",
-      trend: "down",
+      value: Math.round(weightedRevThis).toLocaleString() + " VNĐ",
+      change: revenueChange.change,
+      trend: revenueChange.trend,
       icon: DollarSign,
-      description: "Quý này",
+      description: "Weighted pipeline",
     },
     {
       title: "Tỷ lệ thành công",
-      value: successRate(deals) + "%",
-      change: "+5%",
-      trend: "up",
+      value: successRateThis + "%",
+      change: successChange.change,
+      trend: successChange.trend,
       icon: TrendingUp,
-      description: "Lead to customer",
+      description: "Won / (Won + Lost)",
     },
   ];
 
