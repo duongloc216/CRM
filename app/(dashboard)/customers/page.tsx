@@ -91,7 +91,103 @@ export default function CustomersPage() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [deals, setDeals] = useState<any[]>([]);
   const [selectedDealId, setSelectedDealId] = useState<string>("");
+  const [submitting, setSubmitting] = useState(false)
   const router = useRouter()
+
+  // T1.2.1: Form state cho customer
+  const [formData, setFormData] = useState({
+    name: "",
+    company: "",
+    email: "",
+    phone: "",
+    address: "",
+    source: "",
+    status: "prospect",
+    tags: ""
+  })
+
+  // Reset form khi đóng dialog
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      company: "",
+      email: "",
+      phone: "",
+      address: "",
+      source: "",
+      status: "prospect",
+      tags: ""
+    })
+  }
+
+  // T1.2.2: onChange handler
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  // T1.3.1: Submit handler - gọi POST API
+  const handleSubmit = async () => {
+    if (!formData.name.trim()) {
+      alert("Vui lòng nhập tên khách hàng")
+      return
+    }
+    if (!formData.email.trim()) {
+      alert("Vui lòng nhập email")
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData)
+      })
+      const result = await res.json()
+      
+      if (!res.ok) {
+        alert(result.message || "Có lỗi xảy ra")
+        return
+      }
+
+      // T1.3.4: Refresh data sau khi submit thành công
+      const refreshRes = await fetch("/api/customers")
+      const refreshData = await refreshRes.json()
+      setCustomers(refreshData.data || [])
+
+      // T1.3.5: Đóng dialog và reset form
+      setIsAddDialogOpen(false)
+      resetForm()
+      alert("Tạo khách hàng thành công!")
+    } catch (err) {
+      alert("Có lỗi xảy ra khi tạo khách hàng")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // T3.5.2: Delete handler
+  const handleDelete = async (id: number) => {
+    if (!confirm("Bạn có chắc muốn xóa khách hàng này?")) return
+
+    try {
+      const res = await fetch(`/api/customers/${id}`, { method: "DELETE" })
+      const result = await res.json()
+      
+      if (!res.ok) {
+        alert(result.message || "Có lỗi xảy ra")
+        return
+      }
+
+      // Refresh data
+      const refreshRes = await fetch("/api/customers")
+      const refreshData = await refreshRes.json()
+      setCustomers(refreshData.data || [])
+      alert("Xóa khách hàng thành công!")
+    } catch (err) {
+      alert("Có lỗi xảy ra khi xóa khách hàng")
+    }
+  }
 
   useEffect(() => {
     fetch("/api/customers")
@@ -156,39 +252,65 @@ export default function CustomersPage() {
             <div className="grid grid-cols-2 gap-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-gray-700">
-                  Tên khách hàng
+                  Tên khách hàng <span className="text-red-500">*</span>
                 </Label>
-                <Input id="name" className="bg-white border-gray-200 text-black" />
+                <Input 
+                  id="name" 
+                  className="bg-white border-gray-200 text-black"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange("name", e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="company" className="text-gray-700">
                   Công ty
                 </Label>
-                <Input id="company" className="bg-white border-gray-200 text-black" />
+                <Input 
+                  id="company" 
+                  className="bg-white border-gray-200 text-black"
+                  value={formData.company}
+                  onChange={(e) => handleInputChange("company", e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-gray-700">
-                  Email
+                  Email <span className="text-red-500">*</span>
                 </Label>
-                <Input id="email" type="email" className="bg-white border-gray-200 text-black" />
+                <Input 
+                  id="email" 
+                  type="email" 
+                  className="bg-white border-gray-200 text-black"
+                  value={formData.email}
+                  onChange={(e) => handleInputChange("email", e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone" className="text-gray-700">
                   Số điện thoại
                 </Label>
-                <Input id="phone" className="bg-white border-gray-200 text-black" />
+                <Input 
+                  id="phone" 
+                  className="bg-white border-gray-200 text-black"
+                  value={formData.phone}
+                  onChange={(e) => handleInputChange("phone", e.target.value)}
+                />
               </div>
               <div className="col-span-2 space-y-2">
                 <Label htmlFor="address" className="text-gray-700">
                   Địa chỉ
                 </Label>
-                <Textarea id="address" className="bg-white border-gray-200 text-black" />
+                <Textarea 
+                  id="address" 
+                  className="bg-white border-gray-200 text-black"
+                  value={formData.address}
+                  onChange={(e) => handleInputChange("address", e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="source" className="text-gray-700">
                   Nguồn
                 </Label>
-                <Select>
+                <Select value={formData.source} onValueChange={(v) => handleInputChange("source", v)}>
                   <SelectTrigger className="bg-white border-gray-200 text-black">
                     <SelectValue placeholder="Chọn nguồn" />
                   </SelectTrigger>
@@ -204,7 +326,7 @@ export default function CustomersPage() {
                 <Label htmlFor="status" className="text-gray-700">
                   Trạng thái
                 </Label>
-                <Select>
+                <Select value={formData.status} onValueChange={(v) => handleInputChange("status", v)}>
                   <SelectTrigger className="bg-white border-gray-200 text-black">
                     <SelectValue placeholder="Chọn trạng thái" />
                   </SelectTrigger>
@@ -216,30 +338,33 @@ export default function CustomersPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="deal" className="text-gray-700">
-                  Gói giao dịch
+                <Label htmlFor="tags" className="text-gray-700">
+                  Tags (phân cách bằng dấu phẩy)
                 </Label>
-                <Select value={selectedDealId} onValueChange={setSelectedDealId}>
-                  <SelectTrigger className="bg-white border-gray-200 text-black">
-                    <SelectValue placeholder="Chọn gói giao dịch" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border-gray-200">
-                    {deals.map((deal) => (
-                      <SelectItem key={deal.id} value={deal.id.toString()}>{deal.title}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input 
+                  id="tags" 
+                  className="bg-white border-gray-200 text-black"
+                  placeholder="VIP, Hot Lead, ..."
+                  value={formData.tags}
+                  onChange={(e) => handleInputChange("tags", e.target.value)}
+                />
               </div>
             </div>
             <div className="flex justify-end space-x-2">
               <Button
                 variant="outline"
-                onClick={() => setIsAddDialogOpen(false)}
+                onClick={() => { setIsAddDialogOpen(false); resetForm(); }}
                 className="bg-white border-gray-200 text-black hover:bg-gray-100"
               >
                 Hủy
               </Button>
-              <Button className="bg-purple-600 hover:bg-purple-700">Lưu khách hàng</Button>
+              <Button 
+                className="bg-purple-600 hover:bg-purple-700"
+                onClick={handleSubmit}
+                disabled={submitting}
+              >
+                {submitting ? "Đang lưu..." : "Lưu khách hàng"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -343,7 +468,10 @@ export default function CustomersPage() {
                           <Edit className="h-4 w-4 mr-2" />
                           Chỉnh sửa
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600 hover:bg-gray-100">
+                        <DropdownMenuItem 
+                          className="text-red-600 hover:bg-gray-100"
+                          onClick={() => handleDelete(customer.id)}
+                        >
                           <Trash2 className="h-4 w-4 mr-2" />
                           Xóa
                         </DropdownMenuItem>

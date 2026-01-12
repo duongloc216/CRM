@@ -33,20 +33,175 @@ import {
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
+// T4.2.2: Deal type interface
+type Deal = {
+  id: number;
+  title: string;
+  customer_id: number | null;
+  customer_name?: string;
+  value: number | null;
+  stage: string;
+  probability: number;
+  expected_close_date: string | null;
+  actual_close_date: string | null;
+  description: string | null;
+  owner_id: number | null;
+  owner_name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+type Customer = { id: number; name: string; company: string }
+type User = { id: number; name: string; email: string }
+
+// T2.4.1: Stage-Probability mapping
+const stageProbabilityMap: { [key: string]: number } = {
+  "prospect": 10,
+  "Đăng ký": 20,
+  "demo": 40,
+  "proposal": 60,
+  "negotiation": 80,
+  "won": 100,
+  "lost": 0,
+}
+
 export default function DealsPage() {
   const [deals, setDeals] = useState<Deal[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [stageFilter, setStageFilter] = useState("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  // T3.1.1, T3.1.2: Fetch customers và users cho dropdowns
+  const [customers, setCustomers] = useState<Customer[]>([])
+  const [users, setUsers] = useState<User[]>([])
+
+  // T1.2.3: Form state cho deal
+  const [formData, setFormData] = useState({
+    title: "",
+    customer_id: "",
+    value: "",
+    stage: "prospect",
+    probability: "10",
+    expected_close_date: "",
+    description: "",
+    owner_id: ""
+  })
+
+  // Reset form
+  const resetForm = () => {
+    setFormData({
+      title: "",
+      customer_id: "",
+      value: "",
+      stage: "prospect",
+      probability: "10",
+      expected_close_date: "",
+      description: "",
+      owner_id: ""
+    })
+  }
+
+  // T1.2.4: onChange handler
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => {
+      const updated = { ...prev, [field]: value }
+      // T2.4.2: Auto-fill probability khi chọn stage
+      if (field === "stage" && stageProbabilityMap[value] !== undefined) {
+        updated.probability = stageProbabilityMap[value].toString()
+      }
+      return updated
+    })
+  }
+
+  // T1.3.2: Submit handler
+  const handleSubmit = async () => {
+    if (!formData.title.trim()) {
+      alert("Vui lòng nhập tiêu đề cơ hội")
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const payload = {
+        title: formData.title,
+        customer_id: formData.customer_id ? parseInt(formData.customer_id) : null,
+        value: formData.value ? parseFloat(formData.value) : null,
+        stage: formData.stage,
+        probability: parseInt(formData.probability) || 0,
+        expected_close_date: formData.expected_close_date || null,
+        description: formData.description,
+        owner_id: formData.owner_id ? parseInt(formData.owner_id) : null
+      }
+
+      const res = await fetch("/api/deals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      const result = await res.json()
+      
+      if (!res.ok) {
+        alert(result.message || "Có lỗi xảy ra")
+        return
+      }
+
+      // Refresh data
+      const refreshRes = await fetch("/api/deals")
+      const refreshData = await refreshRes.json()
+      setDeals(refreshData.data || [])
+
+      setIsAddDialogOpen(false)
+      resetForm()
+      alert("Tạo cơ hội thành công!")
+    } catch (err) {
+      alert("Có lỗi xảy ra khi tạo cơ hội")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // T3.5.3: Delete handler
+  const handleDelete = async (id: number) => {
+    if (!confirm("Bạn có chắc muốn xóa cơ hội này?")) return
+
+    try {
+      const res = await fetch(`/api/deals/${id}`, { method: "DELETE" })
+      const result = await res.json()
+      
+      if (!res.ok) {
+        alert(result.message || "Có lỗi xảy ra")
+        return
+      }
+
+      const refreshRes = await fetch("/api/deals")
+      const refreshData = await refreshRes.json()
+      setDeals(refreshData.data || [])
+      alert("Xóa cơ hội thành công!")
+    } catch (err) {
+      alert("Có lỗi xảy ra khi xóa cơ hội")
+    }
+  }
 
   useEffect(() => {
+    // Fetch deals
     fetch("/api/deals")
       .then((res) => res.json())
       .then((response) => {
         setDeals(response.data || [])
         setLoading(false)
       })
+    
+    // T3.1.1: Fetch customers cho dropdown
+    fetch("/api/customers")
+      .then((res) => res.json())
+      .then((response) => setCustomers(response.data || []))
+
+    // T3.1.2: Fetch users cho dropdown
+    fetch("/api/users")
+      .then((res) => res.json())
+      .then((response) => setUsers(response.data || []))
   }, [])
 
   const stages = [
@@ -54,6 +209,7 @@ export default function DealsPage() {
     { key: "prospect", label: "Tiềm năng", color: "bg-blue-500", textColor: "text-blue-400" },
     { key: "demo", label: "Demo", color: "bg-yellow-500", textColor: "text-yellow-400" },
     { key: "proposal", label: "Đề xuất", color: "bg-orange-500", textColor: "text-orange-400" },
+    { key: "negotiation", label: "Đàm phán", color: "bg-pink-500", textColor: "text-pink-400" },
     { key: "won", label: "Thành công", color: "bg-green-500", textColor: "text-green-400" },
     { key: "lost", label: "Thất bại", color: "bg-red-500", textColor: "text-red-400" },
   ]
@@ -111,22 +267,29 @@ export default function DealsPage() {
             <div className="grid grid-cols-2 gap-4 py-4">
               <div className="col-span-2 space-y-2">
                 <Label htmlFor="title" className="text-gray-700">
-                  Tiêu đề cơ hội
+                  Tiêu đề cơ hội <span className="text-red-500">*</span>
                 </Label>
-                <Input id="title" className="bg-white border-gray-200 text-black placeholder:text-gray-400" />
+                <Input 
+                  id="title" 
+                  className="bg-white border-gray-200 text-black placeholder:text-gray-400"
+                  value={formData.title}
+                  onChange={(e) => handleInputChange("title", e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="customer" className="text-gray-700">
                   Khách hàng
                 </Label>
-                <Select>
+                <Select value={formData.customer_id} onValueChange={(v) => handleInputChange("customer_id", v)}>
                   <SelectTrigger className="bg-white border-gray-200 text-black">
                     <SelectValue placeholder="Chọn khách hàng" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white border-gray-200">
-                    <SelectItem value="abc">Công ty TNHH ABC</SelectItem>
-                    <SelectItem value="xyz">Doanh nghiệp XYZ</SelectItem>
-                    <SelectItem value="def">Startup DEF</SelectItem>
+                  <SelectContent className="bg-white border-gray-200 max-h-60">
+                    {customers.map((c) => (
+                      <SelectItem key={c.id} value={c.id.toString()}>
+                        {c.name} {c.company ? `(${c.company})` : ''}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -134,13 +297,19 @@ export default function DealsPage() {
                 <Label htmlFor="value" className="text-gray-700">
                   Giá trị (VNĐ)
                 </Label>
-                <Input id="value" type="number" className="bg-white border-gray-200 text-black placeholder:text-gray-400" />
+                <Input 
+                  id="value" 
+                  type="number" 
+                  className="bg-white border-gray-200 text-black placeholder:text-gray-400"
+                  value={formData.value}
+                  onChange={(e) => handleInputChange("value", e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="stage" className="text-gray-700">
                   Giai đoạn
                 </Label>
-                <Select>
+                <Select value={formData.stage} onValueChange={(v) => handleInputChange("stage", v)}>
                   <SelectTrigger className="bg-white border-gray-200 text-black">
                     <SelectValue placeholder="Chọn giai đoạn" />
                   </SelectTrigger>
@@ -161,26 +330,40 @@ export default function DealsPage() {
                   min="0"
                   max="100"
                   className="bg-white border-gray-200 text-black placeholder:text-gray-400"
+                  value={formData.probability}
+                  onChange={(e) => handleInputChange("probability", e.target.value)}
                 />
+                {stageProbabilityMap[formData.stage] !== undefined && 
+                 parseInt(formData.probability) !== stageProbabilityMap[formData.stage] && (
+                  <p className="text-xs text-orange-500">
+                    ⚠️ Đề xuất: {stageProbabilityMap[formData.stage]}% cho stage này
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="expectedClose" className="text-gray-700">
                   Ngày đóng dự kiến
                 </Label>
-                <Input id="expectedClose" type="date" className="bg-white border-gray-200 text-black placeholder:text-gray-400" />
+                <Input 
+                  id="expectedClose" 
+                  type="date" 
+                  className="bg-white border-gray-200 text-black placeholder:text-gray-400"
+                  value={formData.expected_close_date}
+                  onChange={(e) => handleInputChange("expected_close_date", e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="owner" className="text-gray-700">
                   Người phụ trách
                 </Label>
-                <Select>
+                <Select value={formData.owner_id} onValueChange={(v) => handleInputChange("owner_id", v)}>
                   <SelectTrigger className="bg-white border-gray-200 text-black">
                     <SelectValue placeholder="Chọn người phụ trách" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white border-gray-200">
-                    <SelectItem value="user1">Nguyễn Văn A</SelectItem>
-                    <SelectItem value="user2">Trần Thị B</SelectItem>
-                    <SelectItem value="user3">Lê Minh C</SelectItem>
+                  <SelectContent className="bg-white border-gray-200 max-h-60">
+                    {users.map((u) => (
+                      <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -188,18 +371,29 @@ export default function DealsPage() {
                 <Label htmlFor="description" className="text-gray-700">
                   Mô tả
                 </Label>
-                <Textarea id="description" className="bg-white border-gray-200 text-black placeholder:text-gray-400" />
+                <Textarea 
+                  id="description" 
+                  className="bg-white border-gray-200 text-black placeholder:text-gray-400"
+                  value={formData.description}
+                  onChange={(e) => handleInputChange("description", e.target.value)}
+                />
               </div>
             </div>
             <div className="flex justify-end space-x-2">
               <Button
                 variant="outline"
-                onClick={() => setIsAddDialogOpen(false)}
+                onClick={() => { setIsAddDialogOpen(false); resetForm(); }}
                 className="bg-white border-gray-200 text-black hover:bg-gray-100"
               >
                 Hủy
               </Button>
-              <Button className="bg-purple-600 hover:bg-purple-700">Tạo cơ hội</Button>
+              <Button 
+                className="bg-purple-600 hover:bg-purple-700"
+                onClick={handleSubmit}
+                disabled={submitting}
+              >
+                {submitting ? "Đang tạo..." : "Tạo cơ hội"}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -312,8 +506,10 @@ export default function DealsPage() {
                       <div className="text-sm text-gray-500 line-clamp-1">{deal.description}</div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-gray-600">{deal.customer_id}</TableCell>
-                  <TableCell className="text-gray-600 font-medium">{deal.value}</TableCell>
+                  <TableCell className="text-gray-600">{deal.customer_name || '-'}</TableCell>
+                  <TableCell className="text-gray-600 font-medium">
+                    {deal.value ? deal.value.toLocaleString('vi-VN') + ' đ' : '-'}
+                  </TableCell>
                   <TableCell>{getStageBadge(deal.stage)}</TableCell>
                   <TableCell>
                     <div className="space-y-1">
@@ -323,8 +519,10 @@ export default function DealsPage() {
                       <Progress value={deal.probability} className="h-1 w-16" />
                     </div>
                   </TableCell>
-                  <TableCell className="text-gray-500">{deal.expected_close}</TableCell>
-                  <TableCell className="text-gray-600">{deal.owner_id}</TableCell>
+                  <TableCell className="text-gray-500">
+                    {deal.expected_close_date ? new Date(deal.expected_close_date).toLocaleDateString('vi-VN') : '-'}
+                  </TableCell>
+                  <TableCell className="text-gray-600">{deal.owner_name || '-'}</TableCell>
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -341,7 +539,10 @@ export default function DealsPage() {
                           <Edit className="h-4 w-4 mr-2" />
                           Chỉnh sửa
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600 hover:bg-gray-100">
+                        <DropdownMenuItem 
+                          className="text-red-600 hover:bg-gray-100"
+                          onClick={() => handleDelete(deal.id)}
+                        >
                           <Trash2 className="h-4 w-4 mr-2" />
                           Xóa
                         </DropdownMenuItem>

@@ -47,6 +47,102 @@ export default function SettingsPage() {
   const [isAddTagDialogOpen, setIsAddTagDialogOpen] = useState(false)
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+
+  // T1.2.5: Form state cho user
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    role: "",
+    password: "",
+    status: "active"
+  })
+
+  // Reset form
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      email: "",
+      role: "",
+      password: "",
+      status: "active"
+    })
+  }
+
+  // T1.2.6: onChange handler
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  // T1.3.3: Submit handler
+  const handleSubmit = async () => {
+    if (!formData.name.trim()) {
+      alert("Vui lòng nhập tên người dùng")
+      return
+    }
+    if (!formData.email.trim()) {
+      alert("Vui lòng nhập email")
+      return
+    }
+    if (!formData.role) {
+      alert("Vui lòng chọn vai trò")
+      return
+    }
+    if (!formData.password || formData.password.length < 6) {
+      alert("Mật khẩu phải có ít nhất 6 ký tự")
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData)
+      })
+      const result = await res.json()
+      
+      if (!res.ok) {
+        alert(result.message || "Có lỗi xảy ra")
+        return
+      }
+
+      // Refresh data
+      const refreshRes = await fetch("/api/users")
+      const refreshData = await refreshRes.json()
+      setUsers(refreshData.data || [])
+
+      setIsAddUserDialogOpen(false)
+      resetForm()
+      alert("Tạo người dùng thành công!")
+    } catch (err) {
+      alert("Có lỗi xảy ra khi tạo người dùng")
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // T3.5.4: Delete handler
+  const handleDelete = async (id: number) => {
+    if (!confirm("Bạn có chắc muốn xóa người dùng này?")) return
+
+    try {
+      const res = await fetch(`/api/users/${id}`, { method: "DELETE" })
+      const result = await res.json()
+      
+      if (!res.ok) {
+        alert(result.message || "Có lỗi xảy ra")
+        return
+      }
+
+      const refreshRes = await fetch("/api/users")
+      const refreshData = await refreshRes.json()
+      setUsers(refreshData.data || [])
+      alert("Xóa người dùng thành công!")
+    } catch (err) {
+      alert("Có lỗi xảy ra khi xóa người dùng")
+    }
+  }
 
   const tags = [
     { id: 1, name: "VIP", color: "purple", count: 12 },
@@ -149,21 +245,32 @@ export default function SettingsPage() {
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label htmlFor="userName" className="text-gray-700">
-                      Tên người dùng
+                      Tên người dùng <span className="text-red-500">*</span>
                     </Label>
-                    <Input id="userName" className="bg-white border-gray-200 text-black" />
+                    <Input 
+                      id="userName" 
+                      className="bg-white border-gray-200 text-black"
+                      value={formData.name}
+                      onChange={(e) => handleInputChange("name", e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="userEmail" className="text-gray-700">
-                      Email
+                      Email <span className="text-red-500">*</span>
                     </Label>
-                    <Input id="userEmail" type="email" className="bg-white border-gray-200 text-black" />
+                    <Input 
+                      id="userEmail" 
+                      type="email" 
+                      className="bg-white border-gray-200 text-black"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange("email", e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="userRole" className="text-gray-700">
-                      Vai trò
+                      Vai trò <span className="text-red-500">*</span>
                     </Label>
-                    <Select>
+                    <Select value={formData.role} onValueChange={(v) => handleInputChange("role", v)}>
                       <SelectTrigger className="bg-white border-gray-200 text-black">
                         <SelectValue placeholder="Chọn vai trò" />
                       </SelectTrigger>
@@ -176,20 +283,32 @@ export default function SettingsPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="userPassword" className="text-gray-700">
-                      Mật khẩu tạm thời
+                      Mật khẩu <span className="text-red-500">*</span> <span className="text-xs text-gray-400">(tối thiểu 6 ký tự)</span>
                     </Label>
-                    <Input id="userPassword" type="password" className="bg-white border-gray-200 text-black" />
+                    <Input 
+                      id="userPassword" 
+                      type="password" 
+                      className="bg-white border-gray-200 text-black"
+                      value={formData.password}
+                      onChange={(e) => handleInputChange("password", e.target.value)}
+                    />
                   </div>
                 </div>
                 <div className="flex justify-end space-x-2">
                   <Button
                     variant="outline"
-                    onClick={() => setIsAddUserDialogOpen(false)}
+                    onClick={() => { setIsAddUserDialogOpen(false); resetForm(); }}
                     className="bg-white border-gray-200 text-black hover:bg-gray-100"
                   >
                     Hủy
                   </Button>
-                  <Button className="bg-purple-600 hover:bg-purple-700">Tạo người dùng</Button>
+                  <Button 
+                    className="bg-purple-600 hover:bg-purple-700"
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                  >
+                    {submitting ? "Đang tạo..." : "Tạo người dùng"}
+                  </Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -237,7 +356,10 @@ export default function SettingsPage() {
                               <Edit className="h-4 w-4 mr-2" />
                               Chỉnh sửa
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-400 hover:bg-gray-100">
+                            <DropdownMenuItem 
+                              className="text-red-400 hover:bg-gray-100"
+                              onClick={() => handleDelete(user.id)}
+                            >
                               <Trash2 className="h-4 w-4 mr-2" />
                               Xóa
                             </DropdownMenuItem>
