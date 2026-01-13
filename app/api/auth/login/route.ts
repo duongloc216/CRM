@@ -1,6 +1,7 @@
 import { getConnection } from '@/lib/db';
 import { apiSuccess, apiError } from '@/lib/api-response';
 import { NextRequest } from 'next/server';
+import bcrypt from 'bcryptjs';
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
     const pool = await getConnection();
     const result = await pool.request()
       .input('email', email)
-      .query('SELECT id, name, email, role, status FROM users WHERE email = @email');
+      .query('SELECT id, name, email, role, status, password_hash FROM users WHERE email = @email');
 
     if (result.recordset.length === 0) {
       return apiError('Email hoặc password không đúng', 401);
@@ -22,9 +23,11 @@ export async function POST(req: NextRequest) {
 
     const user = result.recordset[0];
 
-    // TODO: Trong production, cần verify password với bcrypt
-    // const isValidPassword = await bcrypt.compare(password, user.password_hash);
-    // if (!isValidPassword) return apiError('Email hoặc password không đúng', 401);
+    // Verify password với bcrypt
+    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    if (!isValidPassword) {
+      return apiError('Email hoặc password không đúng', 401);
+    }
 
     // Mock JWT token (trong production dùng jsonwebtoken library)
     const token = Buffer.from(JSON.stringify({ 

@@ -1,5 +1,5 @@
 import { getConnection } from '@/lib/db';
-import { apiSuccess, apiError, handleApiError } from '@/lib/api-response';
+import { apiSuccess, apiError, handleApiError } from '@/lib/api-response'; 
 import { NextRequest } from 'next/server';
 import bcrypt from 'bcryptjs';
 
@@ -10,7 +10,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const pool = await getConnection();
     
     const result = await pool.request()
-      .input('id', id)
+      .input('id', parseInt(id))
       .query(`
         SELECT id, name, email, role, status, created_at, updated_at, last_login
         FROM users WHERE id = @id
@@ -57,7 +57,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     // Kiểm tra email đã được dùng bởi user khác
     const emailCheck = await pool.request()
       .input('email', body.email.trim())
-      .input('id', id)
+      .input('id', parseInt(id))
       .query('SELECT id FROM users WHERE email = @email AND id != @id');
     
     if (emailCheck.recordset.length > 0) {
@@ -69,14 +69,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (body.password && body.password.length >= 6) {
       const password_hash = await bcrypt.hash(body.password, 10);
       await pool.request()
-        .input('id', id)
+        .input('id', parseInt(id))
         .input('password_hash', password_hash)
         .query('UPDATE users SET password_hash = @password_hash WHERE id = @id');
     }
 
     // Update user info
     const result = await pool.request()
-      .input('id', id)
+      .input('id', parseInt(id))
       .input('name', body.name.trim())
       .input('email', body.email.trim())
       .input('role', body.role || 'sales')
@@ -102,7 +102,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     
     // Kiểm tra user tồn tại
     const checkResult = await pool.request()
-      .input('id', id)
+      .input('id', parseInt(id))
       .query('SELECT id FROM users WHERE id = @id');
     
     if (!checkResult.recordset[0]) {
@@ -111,11 +111,11 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
     // Kiểm tra có dữ liệu liên quan không
     const customersCheck = await pool.request()
-      .input('id', id)
+      .input('id', parseInt(id))
       .query('SELECT COUNT(*) as count FROM customers WHERE created_by = @id');
     
     const dealsCheck = await pool.request()
-      .input('id', id)
+      .input('id', parseInt(id))
       .query('SELECT COUNT(*) as count FROM deals WHERE owner_id = @id');
 
     if (customersCheck.recordset[0].count > 0 || dealsCheck.recordset[0].count > 0) {
@@ -124,17 +124,17 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
     // Xóa activities liên quan
     await pool.request()
-      .input('id', id)
+      .input('id', parseInt(id))
       .query('DELETE FROM activities WHERE user_id = @id');
 
     // Xóa reminders liên quan
     await pool.request()
-      .input('id', id)
+      .input('id', parseInt(id))
       .query('DELETE FROM reminders WHERE user_id = @id');
 
     // Xóa user
     await pool.request()
-      .input('id', id)
+      .input('id', parseInt(id))
       .query('DELETE FROM users WHERE id = @id');
 
     return apiSuccess(null, 'Xóa người dùng thành công');

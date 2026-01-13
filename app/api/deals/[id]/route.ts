@@ -1,5 +1,5 @@
 import { getConnection } from '@/lib/db';
-import { apiSuccess, apiError, handleApiError } from '@/lib/api-response';
+import { apiSuccess, apiError, handleApiError } from '@/lib/api-response'; 
 import { NextRequest } from 'next/server';
 
 // T3.6.2: GET - Lấy chi tiết deal
@@ -9,7 +9,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const pool = await getConnection();
     
     const result = await pool.request()
-      .input('id', id)
+      .input('id', parseInt(id))
       .query(`
         SELECT d.*, c.name as customer_name, u.name as owner_name
         FROM deals d
@@ -26,7 +26,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 
     // Lấy activities liên quan
     const activitiesResult = await pool.request()
-      .input('id', id)
+      .input('id', parseInt(id))
       .query('SELECT * FROM activities WHERE deal_id = @id ORDER BY activity_date DESC');
     
     deal.activities = activitiesResult.recordset;
@@ -61,7 +61,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
     // Update deal
     const result = await pool.request()
-      .input('id', id)
+      .input('id', parseInt(id))
       .input('title', body.title.trim())
       .input('customer_id', body.customer_id || null)
       .input('value', body.value || null)
@@ -97,7 +97,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     
     // Kiểm tra deal tồn tại
     const checkResult = await pool.request()
-      .input('id', id)
+      .input('id', parseInt(id))
       .query('SELECT id FROM deals WHERE id = @id');
     
     if (!checkResult.recordset[0]) {
@@ -106,12 +106,12 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 
     // Xóa activities liên quan trước
     await pool.request()
-      .input('id', id)
+      .input('id', parseInt(id))
       .query('DELETE FROM activities WHERE deal_id = @id');
 
     // Xóa deal
     await pool.request()
-      .input('id', id)
+      .input('id', parseInt(id))
       .query('DELETE FROM deals WHERE id = @id');
 
     return apiSuccess(null, 'Xóa cơ hội thành công');

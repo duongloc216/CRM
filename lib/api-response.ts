@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 
-export function apiSuccess<T>(data: T, status = 200) {
-  return NextResponse.json(
-    { success: true, data },
-    { status }
-  );
+// Overload signatures
+export function apiSuccess<T>(data: T): NextResponse;
+export function apiSuccess<T>(data: T, message: string): NextResponse;
+export function apiSuccess<T>(data: T, message: string, status: number): NextResponse;
+export function apiSuccess<T>(data: T, message?: string, status = 200): NextResponse {
+  const response: any = { success: true, data };
+  if (message) {
+    response.message = message;
+  }
+  return NextResponse.json(response, { status });
 }
 
 export function apiError(message: string, status = 500, details?: any) {

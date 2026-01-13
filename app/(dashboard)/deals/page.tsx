@@ -87,6 +87,7 @@ export default function DealsPage() {
     stage: "prospect",
     probability: "10",
     expected_close_date: "",
+    actual_close_date: "",
     description: "",
     owner_id: ""
   })
@@ -100,6 +101,7 @@ export default function DealsPage() {
       stage: "prospect",
       probability: "10",
       expected_close_date: "",
+      actual_close_date: "",
       description: "",
       owner_id: ""
     })
@@ -196,6 +198,7 @@ export default function DealsPage() {
     stage: "prospect",
     probability: "10",
     expected_close_date: "",
+    actual_close_date: "",
     description: "",
     owner_id: ""
   })
@@ -210,6 +213,7 @@ export default function DealsPage() {
       stage: deal.stage || "prospect",
       probability: deal.probability?.toString() || "10",
       expected_close_date: deal.expected_close_date?.split('T')[0] || "",
+      actual_close_date: deal.actual_close_date?.split('T')[0] || "",
       description: deal.description || "",
       owner_id: deal.owner_id?.toString() || ""
     })
@@ -244,6 +248,7 @@ export default function DealsPage() {
         stage: editFormData.stage,
         probability: parseInt(editFormData.probability) || 0,
         expected_close_date: editFormData.expected_close_date || null,
+        actual_close_date: editFormData.actual_close_date || null,
         description: editFormData.description,
         owner_id: editFormData.owner_id ? parseInt(editFormData.owner_id) : null
       }
@@ -752,6 +757,15 @@ export default function DealsPage() {
                 className="bg-white border-gray-200 text-black"
                 value={editFormData.expected_close_date}
                 onChange={(e) => handleEditInputChange("expected_close_date", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-gray-700">Ngày đóng thực tế</Label>
+              <Input 
+                type="date"
+                className="bg-white border-gray-200 text-black"
+                value={editFormData.actual_close_date}
+                onChange={(e) => handleEditInputChange("actual_close_date", e.target.value)}
               />
             </div>
             <div className="space-y-2">
