@@ -429,7 +429,7 @@ export default function DealsPage() {
                     <SelectValue placeholder="Chọn giai đoạn" />
                   </SelectTrigger>
                   <SelectContent className="bg-white border-gray-200">
-                    {stages.map((stage) => (
+                    {stages.filter(s => s.key !== 'lost').map((stage) => (
                       <SelectItem key={stage.key} value={stage.key}>{stage.label}</SelectItem>
                     ))}
                   </SelectContent>
@@ -727,7 +727,7 @@ export default function DealsPage() {
                   <SelectValue placeholder="Chọn giai đoạn" />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-gray-200">
-                  {stages.map((stage) => (
+                  {stages.filter(s => s.key !== 'lost').map((stage) => (
                     <SelectItem key={stage.key} value={stage.key}>{stage.label}</SelectItem>
                   ))}
                 </SelectContent>

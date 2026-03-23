@@ -47,16 +47,32 @@ function getSalesPeople(users: any[], deals: any[]) {
 }
 
 function getStageAnalysis(deals: any[]) {
+  // Map stage keys to Vietnamese labels
+  const stageLabels: Record<string, string> = {
+    'Đăng ký': 'Đăng ký',
+    'prospect': 'Tiềm năng',
+    'demo': 'Demo',
+    'proposal': 'Đề xuất',
+    'negotiation': 'Đàm phán',
+    'won': 'Thành công',
+    'lost': 'Thất bại'
+  };
+  
   // Tổng hợp số deal, giá trị, thời gian trung bình theo stage
   const result: Record<string, { count: number; value: number; avgTime: number }> = {};
   deals.forEach(d => {
     if (!result[d.stage]) result[d.stage] = { count: 0, value: 0, avgTime: 0 };
     result[d.stage].count += 1;
     result[d.stage].value += d.value || 0;
-    // avgTime mẫu, có thể tính từ ngày tạo đến ngày đóng
+    // avgTime mẫu: 30 ngày cho mỗi deal (sẽ tính trung bình sau)
     result[d.stage].avgTime += 30;
   });
-  return Object.entries(result).map(([stage, data]) => ({ stage, ...data }));
+  return Object.entries(result).map(([stage, data]) => ({ 
+    stage: stageLabels[stage] || stage, 
+    count: data.count,
+    value: data.value,
+    avgTime: data.count > 0 ? Math.round(data.avgTime / data.count) : 0  // Tính trung bình thật
+  }));
 }
 
 export default function ReportsPage() {
@@ -241,11 +257,10 @@ export default function ReportsPage() {
                 <DollarSign className="h-4 w-4 text-gray-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-black">4.21B VNĐ</div>
-                <div className="flex items-center text-xs text-green-600">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  +15.2% so với kỳ trước
+                <div className="text-2xl font-bold text-black">
+                  {formatCurrency(deals.filter(d => d.stage === 'won').reduce((sum, d) => sum + (d.value || 0), 0))}
                 </div>
+                <div className="text-xs text-gray-500">Từ {deals.filter(d => d.stage === 'won').length} deals đã thành công</div>
               </CardContent>
             </Card>
 
@@ -255,10 +270,11 @@ export default function ReportsPage() {
                 <Target className="h-4 w-4 text-gray-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-black">111</div>
-                <div className="flex items-center text-xs text-green-600">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  +8.5% so với kỳ trước
+                <div className="text-2xl font-bold text-black">
+                  {deals.filter(d => d.stage === 'won' || d.stage === 'lost').length}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {deals.filter(d => d.stage === 'won').length} thành công, {deals.filter(d => d.stage === 'lost').length} thất bại
                 </div>
               </CardContent>
             </Card>
@@ -269,11 +285,14 @@ export default function ReportsPage() {
                 <TrendingUp className="h-4 w-4 text-gray-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-black">27.8%</div>
-                <div className="flex items-center text-xs text-red-600">
-                  <TrendingDown className="h-3 w-3 mr-1" />
-                  -2.1% so với kỳ trước
+                <div className="text-2xl font-bold text-black">
+                  {(() => {
+                    const closed = deals.filter(d => d.stage === 'won' || d.stage === 'lost').length;
+                    const won = deals.filter(d => d.stage === 'won').length;
+                    return closed > 0 ? `${Math.round((won / closed) * 100)}%` : '0%';
+                  })()}
                 </div>
+                <div className="text-xs text-gray-500">Tỷ lệ deals thành công</div>
               </CardContent>
             </Card>
 
@@ -283,11 +302,14 @@ export default function ReportsPage() {
                 <DollarSign className="h-4 w-4 text-gray-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-black">38M VNĐ</div>
-                <div className="flex items-center text-xs text-green-600">
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                  +6.2% so với kỳ trước
+                <div className="text-2xl font-bold text-black">
+                  {(() => {
+                    const wonDeals = deals.filter(d => d.stage === 'won');
+                    const totalValue = wonDeals.reduce((sum, d) => sum + (d.value || 0), 0);
+                    return wonDeals.length > 0 ? formatCurrency(totalValue / wonDeals.length) : formatCurrency(0);
+                  })()}
                 </div>
+                <div className="text-xs text-gray-500">Giá trị trung bình mỗi deal thành công</div>
               </CardContent>
             </Card>
           </div>
@@ -392,56 +414,6 @@ export default function ReportsPage() {
         </Card>
       )}
 
-      {/* Export Options */}
-      <Card className="bg-white border-gray-200">
-        <CardHeader>
-          <CardTitle className="text-black">Tùy chọn xuất dữ liệu</CardTitle>
-          <CardDescription className="text-gray-500">Chọn loại dữ liệu và định dạng để xuất</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Button
-              variant="outline"
-              onClick={() => exportData("customers-excel")}
-              className="bg-white border-gray-200 text-black hover:bg-gray-100 h-20 flex-col"
-            >
-              <Users className="h-6 w-6 mb-2" />
-              <span>Khách hàng</span>
-              <span className="text-xs text-gray-500">Excel/CSV</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={() => exportData("deals-excel")}
-              className="bg-white border-gray-200 text-black hover:bg-gray-100 h-20 flex-col"
-            >
-              <Target className="h-6 w-6 mb-2" />
-              <span>Cơ hội</span>
-              <span className="text-xs text-gray-500">Excel/CSV</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={() => exportData("activities-excel")}
-              className="bg-white border-gray-200 text-black hover:bg-gray-100 h-20 flex-col"
-            >
-              <Calendar className="h-6 w-6 mb-2" />
-              <span>Hoạt động</span>
-              <span className="text-xs text-gray-500">Excel/CSV</span>
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={() => exportData("revenue-excel")}
-              className="bg-white border-gray-200 text-black hover:bg-gray-100 h-20 flex-col"
-            >
-              <DollarSign className="h-6 w-6 mb-2" />
-              <span>Doanh thu</span>
-              <span className="text-xs text-gray-500">Excel/CSV</span>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }

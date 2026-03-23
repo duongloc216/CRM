@@ -146,7 +146,7 @@ function getMonthlyRevenue(deals: any[]): Array<{month: string, revenue: number,
   return Object.entries(monthlyData)
     .map(([month, data]) => ({ month, revenue: data.revenue, sortKey: data.sortKey }))
     .sort((a, b) => a.sortKey - b.sortKey)
-    .slice(-6);
+    .slice(-3);
 }
 
 export default function DashboardPage() {
@@ -184,8 +184,8 @@ export default function DashboardPage() {
 
   // Pipeline theo stage (T4.1.3: thêm negotiation)
   const pipelineStages = [
-    { stage: "Đăng ký", key: "Đăng ký", color: "bg-purple-500" },
     { stage: "Tiềm năng", key: "prospect", color: "bg-blue-500" },
+    { stage: "Đăng ký", key: "Đăng ký", color: "bg-purple-500" },
     { stage: "Demo", key: "demo", color: "bg-yellow-500" },
     { stage: "Đề xuất", key: "proposal", color: "bg-orange-500" },
     { stage: "Đàm phán", key: "negotiation", color: "bg-pink-500" },
@@ -359,7 +359,7 @@ export default function DashboardPage() {
       <Card className="bg-white border-gray-200">
         <CardHeader>
           <CardTitle className="text-black">Doanh thu theo tháng</CardTitle>
-          <CardDescription className="text-gray-500">Biểu đồ doanh thu 6 tháng gần đây</CardDescription>
+          <CardDescription className="text-gray-500">Biểu đồ doanh thu 3 tháng gần đây</CardDescription>
         </CardHeader>
         <CardContent>
           {monthlyRevenue.length > 0 ? (
